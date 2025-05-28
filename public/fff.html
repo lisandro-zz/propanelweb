@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cotizaciones y Remisiones AMLC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet"> 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .modal { display: none; }
+        .modal.active { display: flex; }
+        
+        .tab-button.active { background-color: #10B981; color: white; } 
+        .tab-button { background-color: #E5E7EB; color: #374151; }
+        
+        .mode-cotizacion #appTitle { color: #059669; } 
+        .mode-cotizacion #documentTitleSection h2 { background-color: #D1FAE5; color: #065F46; border-color: #6EE7B7;}
+        .mode-cotizacion .tab-button.active { background-color: #10B981; }
+
+        .mode-remision #appTitle { color: #2563EB; } 
+        .mode-remision #documentTitleSection h2 { background-color: #DBEAFE; color: #1E40AF; border-color: #93C5FD;}
+        .mode-remision .tab-button.active { background-color: #3B82F6; }
+
+        [x-cloak] { display: none !important; }
+        .company-logo-pdf { font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 700; color: #1E3A8A; letter-spacing: 1px;}
+        .pdf-footer-notes { font-size: 8px; color: #4B5563; margin-top: 10mm; border-top: 1px solid #ccc; padding-top: 5mm; }
+        
+        #pdfPreviewArea table th, #pdfPreviewArea table td {
+            padding: 4px 6px !important; 
+            font-size: 9px !important; 
+        }
+        #pdfPreviewArea .pdf-item-row-odd td { 
+            background-color: #f9fafb !important; 
+        }
+        .pdf-signature-section { margin-top: 15mm; padding-top: 5mm; border-top: 1px dashed #ccc; text-align: center;}
+        .pdf-signature-line { display: inline-block; border-bottom: 1px solid #333; width: 60mm; margin-top:10mm; }
+
+        .admin-section table th, .admin-section table td { padding: 8px; border: 1px solid #ddd; text-align: left; font-size: 0.8rem;}
+        .admin-section table th { background-color: #e9ecef; }
+        #adminAccessBtn { display: none; } /* Oculto por defecto, se muestra si Firebase está OK */
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8" id="appBody">
+
+    <div class="container mx-auto max-w-6xl bg-white shadow-xl rounded-lg p-6 md:p-8">
+        <header class="mb-8 text-center relative">
+            <h1 id="appTitle" class="text-3xl md:text-4xl font-bold">Cotizaciones y Remisiones AMLC</h1>
+            <p class="text-gray-600">Gestión avanzada para tu negocio de materiales ligeros.</p>
+            <div id="userIdDisplayContainer" class="mt-2"> 
+                 <span class="text-xs text-gray-500"><strong id="userIdDisplay" class="select-all">Cargando...</strong></span>
+            </div>
+            <button id="adminAccessBtn" onclick="openAdminAccessModal()" class="absolute top-0 right-0 mt-2 mr-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-1 rounded-md text-xs">Acceso Admin</button>
+        </header>
+        
+        <div id="adminAccessModal" class="modal fixed inset-0 bg-gray-800 bg-opacity-75 items-center justify-center z-50 p-4">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+                <h2 class="text-xl font-semibold mb-4">Acceso de Administrador</h2>
+                <input type="password" id="adminPasswordInput" placeholder="Contraseña" class="w-full p-2 border border-gray-300 rounded-md mb-4">
+                <div class="flex justify-end space-x-2">
+                    <button onclick="closeAdminAccessModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md text-sm">Cancelar</button>
+                    <button onclick="checkAdminPassword()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-md text-sm">Entrar</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="adminSectionModal" class="modal fixed inset-0 bg-gray-800 bg-opacity-80 items-start justify-center z-40 p-4 overflow-y-auto">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-5xl my-8 admin-section">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-slate-700">Sección de Administración</h2>
+                    <button onclick="closeAdminSectionModal()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm">&times; Cerrar</button>
+                </div>
+
+                <div class="mb-4 border-b border-gray-200">
+                    <nav class="flex space-x-4" aria-label="Tabs">
+                        <button onclick="showAdminTab('remisiones')" class="admin-tab-button active px-3 py-2 font-medium text-sm rounded-t-lg text-slate-700 bg-slate-100">Remisiones</button>
+                        <button onclick="showAdminTab('materiales')" class="admin-tab-button px-3 py-2 font-medium text-sm rounded-t-lg text-slate-500 hover:text-slate-700 hover:bg-slate-50">Materiales Vendidos</button>
+                        <button onclick="showAdminTab('clientes')" class="admin-tab-button px-3 py-2 font-medium text-sm rounded-t-lg text-slate-500 hover:text-slate-700 hover:bg-slate-50">Clientes</button>
+                        <button onclick="showAdminTab('corteCaja')" class="admin-tab-button px-3 py-2 font-medium text-sm rounded-t-lg text-slate-500 hover:text-slate-700 hover:bg-slate-50">Corte de Caja</button>
+                        <button onclick="showAdminTab('viajes')" class="admin-tab-button px-3 py-2 font-medium text-sm rounded-t-lg text-slate-500 hover:text-slate-700 hover:bg-slate-50">Viajes por Chofer</button>
+                    </nav>
+                </div>
+
+                <div id="adminTabContentRemisiones" class="admin-tab-content">
+                    <h3 class="text-xl font-semibold mb-3">Todas las Remisiones</h3>
+                    <div class="max-h-[60vh] overflow-y-auto"><table class="min-w-full"><thead><tr><th>Folio</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Estado Pago</th><th>Chofer</th></tr></thead><tbody id="adminRemisionesList"></tbody></table></div>
+                </div>
+                <div id="adminTabContentMateriales" class="admin-tab-content" style="display:none;">
+                    <h3 class="text-xl font-semibold mb-3">Resumen de Materiales Vendidos (Remisiones Pagadas)</h3>
+                    <div class="max-h-[60vh] overflow-y-auto"><table class="min-w-full"><thead><tr><th>Producto</th><th>Cantidad Total Vendida</th><th>Unidad</th></tr></thead><tbody id="adminMaterialesVendidosList"></tbody></table></div>
+                </div>
+                <div id="adminTabContentClientes" class="admin-tab-content" style="display:none;">
+                    <h3 class="text-xl font-semibold mb-3">Lista de Clientes</h3>
+                    <div class="max-h-[60vh] overflow-y-auto"><table class="min-w-full"><thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Dirección</th><th>RFC</th></tr></thead><tbody id="adminClientesList"></tbody></table></div>
+                </div>
+                <div id="adminTabContentCorteCaja" class="admin-tab-content" style="display:none;">
+                    <h3 class="text-xl font-semibold mb-3">Corte de Caja (Remisiones Pagadas)</h3>
+                    <div class="flex gap-4 mb-3 items-end">
+                        <div>
+                            <label for="corteCajaRange" class="text-sm font-medium">Periodo:</label>
+                            <select id="corteCajaRange" class="p-1 border rounded-md text-sm">
+                                <option value="7">Últimos 7 días</option>
+                                <option value="30">Últimos 30 días</option>
+                                <option value="custom">Personalizado</option>
+                            </select>
+                        </div>
+                        <div id="corteCajaCustomRange" style="display:none;" class="flex gap-2 items-end">
+                            <div><label for="corteCajaStart" class="text-xs">Inicio:</label><input type="date" id="corteCajaStart" class="p-1 border rounded-md text-sm"></div>
+                            <div><label for="corteCajaEnd" class="text-xs">Fin:</label><input type="date" id="corteCajaEnd" class="p-1 border rounded-md text-sm"></div>
+                        </div>
+                        <button onclick="calculateCorteCaja()" class="bg-blue-500 text-white px-3 py-1 rounded-md text-sm">Calcular</button>
+                    </div>
+                    <div id="corteCajaResult" class="text-lg font-semibold">Total: $0.00</div>
+                    <div class="max-h-[50vh] overflow-y-auto mt-2"><table class="min-w-full"><thead><tr><th>Folio</th><th>Fecha</th><th>Cliente</th><th>Total Pagado</th></tr></thead><tbody id="adminCorteCajaList"></tbody></table></div>
+                </div>
+                <div id="adminTabContentViajes" class="admin-tab-content" style="display:none;">
+                    <h3 class="text-xl font-semibold mb-3">Viajes por Chofer</h3>
+                     <div class="flex gap-4 mb-3 items-end">
+                        <div>
+                            <label for="viajesChoferSelect" class="text-sm font-medium">Chofer:</label>
+                            <select id="viajesChoferSelect" class="p-1 border rounded-md text-sm"><option value="">Todos</option></select>
+                        </div>
+                        <div>
+                            <label for="viajesDateRange" class="text-sm font-medium">Periodo:</label>
+                            <select id="viajesDateRange" class="p-1 border rounded-md text-sm">
+                                <option value="today">Hoy</option>
+                                <option value="7">Últimos 7 días</option>
+                                <option value="30">Últimos 30 días</option>
+                            </select>
+                        </div>
+                        <button onclick="loadViajesReport()" class="bg-blue-500 text-white px-3 py-1 rounded-md text-sm">Ver Viajes</button>
+                    </div>
+                    <div id="viajesTotal" class="text-md font-semibold mb-2">Total de Viajes: 0</div>
+                    <div class="max-h-[50vh] overflow-y-auto"><table class="min-w-full"><thead><tr><th>Folio</th><th>Fecha</th><th>Cliente</th><th>Chofer</th></tr></thead><tbody id="adminViajesList"></tbody></table></div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="mb-6 flex justify-center space-x-1 rounded-lg p-1 bg-gray-200 max-w-xs mx-auto">
+            <button id="btnModeCotizacion" onclick="setMode('cotizacion')" class="tab-button active w-1/2 py-2 px-4 rounded-md font-medium text-sm focus:outline-none transition-colors duration-150">Cotización</button>
+            <button id="btnModeRemision" onclick="setMode('remision')" class="tab-button w-1/2 py-2 px-4 rounded-md font-medium text-sm focus:outline-none transition-colors duration-150">Remisión</button>
+        </div>
+        <input type="hidden" id="currentMode" value="cotizacion">
+        <input type="hidden" id="currentDocumentId" value="">
+        <input type="hidden" id="currentFolio" value="">
+
+
+        <section class="mb-8 p-6 bg-gray-50 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4 text-emerald-700 border-b pb-2">Datos del Cliente</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="clientSearch" class="block text-sm font-medium text-gray-700 mb-1">Buscar/Seleccionar Cliente:</label>
+                    <div class="flex">
+                        <select id="clientSearch" class="w-full p-2 border border-gray-300 rounded-l-md focus:ring-emerald-500 focus:border-emerald-500">
+                            <option value="">-- Nuevo Cliente --</option>
+                        </select>
+                        <button onclick="openClientModal(null)" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-r-md text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        </button>
+                    </div>
+                     <button onclick="editSelectedClient()" class="mt-2 text-xs text-emerald-600 hover:text-emerald-800 disabled:opacity-50" id="editClientBtn" disabled>Editar Cliente Seleccionado</button>
+                </div>
+                <div id="clientDetails" class="text-sm space-y-1 text-gray-700">
+                    <p><strong>Nombre:</strong> <span id="clientNameDisplay">-</span></p>
+                    <p><strong>Teléfono:</strong> <span id="clientPhoneDisplay">-</span></p>
+                    <p><strong>Email:</strong> <span id="clientEmailDisplay">-</span></p>
+                    <p><strong>Dirección:</strong> <span id="clientAddressDisplay">-</span></p>
+                </div>
+            </div>
+             <div class="mt-4">
+                <label for="choferNameInput" class="block text-sm font-medium text-gray-700">Nombre del Chofer (Entrega):</label>
+                <input type="text" id="choferNameInput" class="mt-1 w-full md:w-1/2 p-2 border border-gray-300 rounded-md" placeholder="Ej: Pedro Páramo">
+            </div>
+            <div id="paymentStatusSection" class="mt-4" style="display: none;">
+                <label for="paymentStatus" class="block text-sm font-medium text-gray-700">Estado del Pago (Remisión):</label>
+                <select id="paymentStatus" class="mt-1 w-full md:w-1/2 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    <option value="pendiente">Pendiente de Pago</option>
+                    <option value="pagado">Pagado</option>
+                </select>
+            </div>
+            <div id="purchaseHistorySection" class="mt-6 pt-4 border-t border-gray-200" style="display: none;">
+                <h3 class="text-md font-semibold text-gray-700 mb-2">Historial de Compras (Remisiones)</h3>
+                <div id="purchaseHistoryList" class="max-h-40 overflow-y-auto text-xs space-y-1">
+                    <p class="text-gray-500">No hay remisiones registradas para este cliente.</p>
+                </div>
+            </div>
+        </section>
+
+        <div id="clientModal" class="modal fixed inset-0 bg-gray-800 bg-opacity-75 items-center justify-center z-40 p-4 overflow-y-auto">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl my-8">
+                <h2 id="clientModalTitle" class="text-xl font-semibold mb-4">Agregar Nuevo Cliente</h2>
+                <input type="hidden" id="clientId">
+                
+                <h3 class="text-md font-semibold text-gray-700 mb-2 border-b pb-1">Datos Generales</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="clientName" class="block text-sm font-medium text-gray-700">Nombre Completo*:</label>
+                        <input type="text" id="clientName" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="clientPhone" class="block text-sm font-medium text-gray-700">Teléfono:</label>
+                        <input type="tel" id="clientPhone" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="clientEmail" class="block text-sm font-medium text-gray-700">Correo Electrónico:</label>
+                        <input type="email" id="clientEmail" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                     <div>
+                        <label for="clientAddress" class="block text-sm font-medium text-gray-700">Dirección (Calle, Número, Colonia, CP, Ciudad)*:</label>
+                        <input type="text" id="clientAddress" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                </div>
+
+                <h3 class="text-md font-semibold text-gray-700 mb-2 mt-6 border-b pb-1">Datos de Facturación (Opcional)</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="clientRazonSocial" class="block text-sm font-medium text-gray-700">Razón Social:</label>
+                        <input type="text" id="clientRazonSocial" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                     <div>
+                        <label for="clientRfc" class="block text-sm font-medium text-gray-700">RFC:</label>
+                        <input type="text" id="clientRfc" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="clientFiscalAddress" class="block text-sm font-medium text-gray-700">Dirección Fiscal:</label>
+                        <input type="text" id="clientFiscalAddress" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="clientCfdi" class="block text-sm font-medium text-gray-700">Uso CFDI:</label>
+                        <input type="text" id="clientCfdi" placeholder="Ej: G03 - Gastos en general" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                     <div>
+                        <label for="clientRegimenFiscal" class="block text-sm font-medium text-gray-700">Régimen Fiscal:</label>
+                        <input type="text" id="clientRegimenFiscal" placeholder="Ej: 612 - Persona Física con Actividad Empresarial" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                     <div class="md:col-span-2">
+                        <label for="clientInvoiceEmail" class="block text-sm font-medium text-gray-700">Email para Factura (si es diferente):</label>
+                        <input type="email" id="clientInvoiceEmail" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-2 mt-6">
+                    <button onclick="closeClientModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md text-sm">Cancelar</button>
+                    <button onclick="saveClient()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-md text-sm">Guardar Cliente</button>
+                </div>
+            </div>
+        </div>
+
+        <section class="mb-8 p-6 bg-gray-50 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4 text-emerald-700 border-b pb-2">Productos y Materiales</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4 items-end">
+                <div>
+                    <label for="productSelect" class="block text-sm font-medium text-gray-700 mb-1">Seleccionar Producto:</label>
+                    <select id="productSelect" class="w-full p-2 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500"></select>
+                </div>
+                <div>
+                    <label for="productQuantity" class="block text-sm font-medium text-gray-700 mb-1">Cantidad:</label>
+                    <input type="number" id="productQuantity" value="1" min="1" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <button onclick="addItemToDocument()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-md h-10 text-sm">Agregar al Documento</button>
+            </div>
+            <button onclick="openProductModal(null)" class="text-sm text-emerald-600 hover:text-emerald-800 mb-4 inline-flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                Administrar Productos (Agregar/Editar)
+            </button>
+        </section>
+
+        <div id="productModal" class="modal fixed inset-0 bg-gray-800 bg-opacity-75 items-center justify-center z-40 p-4">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
+                <h2 id="productModalTitle" class="text-xl font-semibold mb-4">Administrar Productos</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-1">
+                    <input type="hidden" id="productId">
+                    <div>
+                        <label for="productName" class="block text-sm font-medium text-gray-700">Nombre*:</label>
+                        <input type="text" id="productName" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="productPrice" class="block text-sm font-medium text-gray-700">Precio*:</label>
+                        <input type="number" id="productPrice" step="0.01" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="productUnit" class="block text-sm font-medium text-gray-700">Unidad (pza, m², kg, etc.):</label>
+                        <input type="text" id="productUnit" value="pza" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                </div>
+                <div class="mb-4">
+                     <label for="productDescription" class="block text-sm font-medium text-gray-700">Descripción:</label>
+                     <textarea id="productDescription" rows="2" class="mt-1 w-full p-2 border border-gray-300 rounded-md"></textarea>
+                </div>
+                <div class="flex justify-between items-center mb-4">
+                    <button onclick="saveProduct()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-md text-sm">Guardar Producto</button>
+                    <button onclick="clearProductForm()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-xs">Limpiar Formulario</button>
+                </div>
+
+                <h3 class="text-md font-semibold mb-2">Lista de Productos Existentes</h3>
+                <div class="max-h-60 overflow-y-auto border rounded-md">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Nombre</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Precio</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Unidad</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-500">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="existingProductsList" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-end mt-4">
+                    <button onclick="closeProductModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md text-sm">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <section class="mb-8" id="documentTitleSection">
+            <h2 id="documentTitle" class="text-xl font-semibold mb-4 p-3 rounded-t-lg border-b-2">Items en la Cotización</h2>
+            <div class="overflow-x-auto bg-white rounded-b-lg shadow">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Precio Unit.</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="documentItems" class="bg-white divide-y divide-gray-200">
+                        <tr id="noItemsRow">
+                            <td colspan="5" class="text-center py-4 text-gray-500">No hay productos agregados.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="mb-8 p-6 bg-gray-50 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4 text-emerald-700 border-b pb-2">Resumen</h2>
+            <div class="space-y-2 text-right">
+                <p class="text-2xl font-bold text-emerald-600">Total: <span id="totalAmount">$0.00</span></p>
+            </div>
+        </section>
+
+        <section class="mb-8 p-6 bg-gray-50 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4 text-emerald-700 border-b pb-2">Acciones del Documento</h2>
+            <div class="flex flex-wrap gap-3 justify-center md:justify-start">
+                <button onclick="saveDocument()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-md font-medium text-sm flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                    Guardar Documento
+                </button>
+                <button onclick="generatePDF()" class="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-md font-medium text-sm flex items-center">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                    Generar PDF
+                </button>
+                <button onclick="sendViaWhatsApp()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-md font-medium text-sm flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75A.375.375 0 0 1 9 9.375h6.75a.375.375 0 0 1 .375.375v.375c0 .207-.168.375-.375.375H9a.375.375 0 0 1-.375-.375V9.75ZM8.625 12a.375.375 0 0 1 .375-.375h6.75a.375.375 0 0 1 .375.375v.375c0 .207-.168.375-.375.375H9a.375.375 0 0 1-.375-.375V12Zm8.625-4.5H6.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h11.25c.621 0 1.125-.504 1.125-1.125V8.625c0-.621-.504-1.125-1.125-1.125ZM5.25 7.5V6.375c0-.621.504-1.125 1.125-1.125h6.195c.42-.6.988-1.125 1.63-1.5H6.375A2.625 2.625 0 0 0 3.75 6.375v11.25A2.625 2.625 0 0 0 6.375 20.25h11.25A2.625 2.625 0 0 0 20.25 17.625V8.48c-.375.352-.804.633-1.275.844V17.625c0 .621-.504 1.125-1.125 1.125H6.375c-.621 0-1.125-.504-1.125-1.125V7.5Z" /></svg>
+                    Enviar por WhatsApp
+                </button>
+                 <button onclick="sendPdfAndClearItems()" class="bg-teal-500 hover:bg-teal-600 text-white px-6 py-3 rounded-md font-medium text-sm flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 7.5h-.75A2.25 2.25 0 0 0 4.5 9.75v7.5a2.25 2.25 0 0 0 2.25 2.25h7.5a2.25 2.25 0 0 0 2.25-2.25v-7.5a2.25 2.25 0 0 0-2.25-2.25h-.75m0-3-3-3m0 0-3 3m3-3v11.25m6-2.25h.75a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25h-7.5a2.25 2.25 0 0 1-2.25-2.25v-.75" /></svg>
+                    Enviar PDF y Limpiar Items
+                </button>
+                 <button onclick="clearDocumentItemsOnly()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-md font-medium text-sm flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75L14.25 12m0 0L12 14.25m2.25-2.25L10.5 14.25m0-2.25L12 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Limpiar Items
+                </button>
+                <button onclick="resetDocument()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-md font-medium text-sm flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c.342.052.682.107 1.022.166m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                    Limpiar/Nuevo Documento
+                </button>
+            </div>
+        </section>
+
+        <section class="p-6 bg-gray-50 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4 text-emerald-700 border-b pb-2">Documentos Guardados</h2>
+            <div class="max-h-96 overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500">Folio</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500">Tipo</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500">Fecha</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500">Cliente</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500">Total</th>
+                            <th class="px-3 py-2 text-left font-medium text-gray-500">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="savedDocumentsList" class="bg-white divide-y divide-gray-200">
+                         <tr><td colspan="6" class="text-center py-4 text-gray-500">No hay documentos guardados.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div id="pdfPreviewArea" class="hidden p-8 bg-white border" style="width: 210mm; box-sizing: border-box;"> 
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <div class="company-logo-pdf">AMLC S.A. DE C.V.</div>
+                    <p class="text-xs">Materiales Ligeros y Construcción</p>
+                    <p class="text-xs">RFC: XXX010101XXX</p>
+                    <p class="text-xs">Calle Falsa 123, Colonia Centro</p>
+                    <p class="text-xs">Tu Ciudad, Tu Estado, CP 00000</p>
+                    <p class="text-xs">Tel: 5580127292 / 5580127292</p>
+                    <p class="text-xs">correo@amlc.com</p>
+                </div>
+                <div class="text-right">
+                    <img id="pdfLogoPanelRey" src="URL_LOGO_PANELREY" alt="Logo Panel Rey" style="max-height: 40px; display: inline-block; margin-left:5px;" onerror="this.style.display='none'; this.removeAttribute('src');">
+                    <img id="pdfLogoAdhetec" src="URL_LOGO_ADHECTEC" alt="Logo Adhetec" style="max-height: 40px; display: inline-block; margin-left:5px;" onerror="this.style.display='none'; this.removeAttribute('src');">
+                    <h1 id="pdfTitle" class="text-2xl font-bold mt-2"></h1>
+                    <p id="pdfFolio" class="text-sm mb-1"></p>
+                    <p id="pdfDate" class="text-sm mb-4"></p>
+                </div>
+            </div>
+            
+            <div class="mb-6 p-3 border rounded-md bg-gray-50">
+                <h2 class="font-semibold text-sm mb-1">Cliente:</h2>
+                <p id="pdfClientName" class="text-sm"></p>
+                <p id="pdfClientAddress" class="text-xs"></p>
+                <p id="pdfClientPhone" class="text-xs"></p>
+                <p id="pdfClientEmail" class="text-xs"></p>
+                <div id="pdfClientInvoiceDataMerged" class="mt-2 pt-2 border-t border-gray-200" style="display:none;">
+                    <p class="text-xs"><strong>Razón Social:</strong> <span id="pdfClientRazonSocial"></span></p>
+                    <p class="text-xs"><strong>RFC:</strong> <span id="pdfClientRfc"></span></p>
+                    <p class="text-xs"><strong>Dirección Fiscal:</strong> <span id="pdfClientFiscalAddress"></span></p>
+                    <p class="text-xs"><strong>Uso CFDI:</strong> <span id="pdfClientCfdi"></span></p>
+                    <p class="text-xs"><strong>Régimen Fiscal:</strong> <span id="pdfClientRegimenFiscal"></span></p>
+                    <p class="text-xs"><strong>Email Factura:</strong> <span id="pdfClientInvoiceEmail"></span></p>
+                </div>
+            </div>
+
+            <table class="w-full border-collapse border border-gray-300 text-xs mb-6">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 p-2 text-left">Producto/Descripción</th>
+                        <th class="border border-gray-300 p-2 text-right">Cant.</th>
+                        <th class="border border-gray-300 p-2 text-right">Unidad</th>
+                        <th class="border border-gray-300 p-2 text-right">P. Unit.</th>
+                        <th class="border border-gray-300 p-2 text-right">Importe</th>
+                    </tr>
+                </thead>
+                <tbody id="pdfItems">
+                </tbody>
+            </table>
+            <div class="flex justify-end mb-6">
+                <div class="w-2/5 text-right text-xs">
+                    <p class="font-bold text-base mt-2">Total: <span id="pdfTotal" class="font-bold text-base"></span></p>
+                </div>
+            </div>
+            
+            <div class="pdf-signature-section">
+                 <p class="text-xs"><strong>Entregado por:</strong> <span id="pdfChoferName">-</span></p>
+                 <p id="pdfPaymentStatus" class="text-sm font-semibold mt-1" style="display:none;"></p>
+                 <div class="pdf-signature-line mt-8"></div>
+                 <p class="text-xs mt-1">Nombre y Firma de Recibido</p>
+            </div>
+            
+            <div class="pdf-footer-notes">
+                <p><strong>Notas Importantes para Facturación:</strong></p>
+                <p>- Para solicitar su factura, es indispensable presentar este documento (Cotización/Remisión) en formato PDF.</p>
+                <p>- La solicitud de factura debe realizarse en un plazo no mayor a 5 días hábiles posteriores a la fecha de compra/pago.</p>
+                <p>- Después de este período, no se garantiza la emisión de la factura.</p>
+                <p>- Es responsabilidad del cliente solicitar la factura y verificar que todos sus datos fiscales sean correctos al momento de la solicitud. AMLC S.A. DE C.V. no se hace responsable por errores en los datos proporcionados por el cliente.</p>
+                <p class="mt-2">Precios sujetos a cambio sin previo aviso. Validez de esta cotización: 15 días.</p>
+                <p class="mt-2">Gracias por su preferencia.</p>
+            </div>
+        </div>
+
+        <div id="toast" class="fixed bottom-5 right-5 bg-emerald-500 text-white px-6 py-3 rounded-lg shadow-md text-sm transition-opacity duration-300 opacity-0 z-50">
+            Mensaje de notificación
+        </div>
+    </div>
+    <footer class="text-center text-xs text-gray-500 py-4">
+        Plantilla elaborada por Lisandro Zaragoza
+    </footer>
+
+    <script type="module">
+        // --- Toast Notification (defined early) ---
+        let toastElementRef; 
+        function showToast(message, isError = false) {
+            if (!toastElementRef) { 
+                toastElementRef = document.getElementById('toast');
+            }
+            if (toastElementRef) { 
+                toastElementRef.textContent = message;
+                toastElementRef.className = `fixed bottom-5 right-5 text-white px-6 py-3 rounded-lg shadow-md text-sm transition-opacity duration-300 z-50 ${isError ? 'bg-red-500' : 'bg-emerald-500'}`;
+                toastElementRef.classList.remove('opacity-0');
+                setTimeout(() => {
+                    if (toastElementRef) toastElementRef.classList.add('opacity-0');
+                }, 3500);
+            } else {
+                console[isError ? 'error' : 'log'](`Toast: ${message}`);
+            }
+        }
+
+
+        // Firebase v11 (modular)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, serverTimestamp, orderBy, writeBatch, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- START Firebase Configuration ---
+        let db, auth, userId, app;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : ('local-offline-app-' + crypto.randomUUID().substring(0,8));
+        
+        try {
+            const firebaseConfigJSON = typeof __firebase_config !== 'undefined' ? __firebase_config : 
+                '{"apiKey":"YOUR_FALLBACK_API_KEY","authDomain":"YOUR_FALLBACK_AUTH_DOMAIN","projectId":"YOUR_FALLBACK_PROJECT_ID","storageBucket":"YOUR_FALLBACK_STORAGE_BUCKET","messagingSenderId":"YOUR_FALLBACK_SENDER_ID","appId":"YOUR_FALLBACK_APP_ID"}';
+            
+            const firebaseConfig = JSON.parse(firebaseConfigJSON);
+
+            if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("YOUR_FALLBACK")) {
+                console.warn("Firebase config is not properly available or is using fallback. Database features will be limited in local/offline mode.");
+                showToast("Advertencia: Funciones de base de datos limitadas. Ejecute desde un servidor para persistencia.", true);
+                db = null; 
+                auth = null;
+                const userIdDisplayElement = document.getElementById('userIdDisplay');
+                if (userIdDisplayElement) userIdDisplayElement.textContent = "Modo Offline";
+                else console.warn("userIdDisplay element not found during Firebase fallback.");
+                document.getElementById('adminAccessBtn').style.display = 'none'; // Hide admin button in offline mode
+                loadInitialData(); 
+            } else {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                document.getElementById('adminAccessBtn').style.display = 'block'; // Show admin button if Firebase is configured
+
+                onAuthStateChanged(auth, async (user) => {
+                    const userIdDisplayElement = document.getElementById('userIdDisplay');
+                    if (user) {
+                        userId = user.uid;
+                        console.log("User is signed in with UID:", userId);
+                        if(userIdDisplayElement) userIdDisplayElement.textContent = userId.substring(0,12)+"..."; 
+                        else console.warn("userIdDisplay element not found during auth state change.");
+                        await loadInitialData();
+                    } else {
+                        console.log("User is signed out. Attempting to sign in...");
+                        try {
+                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                await signInWithCustomToken(auth, __initial_auth_token);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Error during sign-in:", error);
+                            showToast("Error de autenticación. Algunas funciones pueden no estar disponibles.", true);
+                            if(userIdDisplayElement) userIdDisplayElement.textContent = "Error de Auth";
+                            else console.warn("userIdDisplay element not found during auth error.");
+                            loadInitialData(); 
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Error initializing Firebase or parsing config:", e);
+            showToast("Error crítico al iniciar Firebase. La aplicación podría no funcionar correctamente.", true);
+            const userIdDisplayElement = document.getElementById('userIdDisplay');
+            if(userIdDisplayElement) userIdDisplayElement.textContent = "Error Firebase";
+            else console.warn("userIdDisplay element not found during critical Firebase error.");
+            document.getElementById('adminAccessBtn').style.display = 'none';
+            db = null; auth = null; 
+            loadInitialData(); 
+        }
+        // --- END Firebase Configuration ---
+
+        let clients = [];
+        let products = [
+            // Paneles de Yeso
+            { id: 'pr_std_127_122_244', name: 'Panel Rey Regular 1/2" (1.22x2.44m)', price: 155.00, unit: 'pza', description: 'Panel de yeso estándar para muros y plafones.', category: 'Paneles' },
+            { id: 'pr_std_159_122_244', name: 'Panel Rey Regular 5/8" (1.22x2.44m)', price: 190.00, unit: 'pza', description: 'Panel de yeso estándar mayor espesor.', category: 'Paneles' },
+            { id: 'pr_rh_127_122_244', name: 'Panel Rey RH (Resist. Humedad) 1/2" (1.22x2.44m)', price: 230.00, unit: 'pza', description: 'Panel de yeso resistente a la humedad.', category: 'Paneles' },
+            { id: 'pr_rf_159_122_244', name: 'Panel Rey RF (Resist. Fuego) 5/8" (1.22x2.44m)', price: 265.00, unit: 'pza', description: 'Panel de yeso resistente al fuego tipo X.', category: 'Paneles' },
+            { id: 'pr_glassrey_127_122_244', name: 'GlassRey Exterior 1/2" (1.22x2.44m)', price: 370.00, unit: 'pza', description: 'Panel de yeso con fibra de vidrio para exteriores.', category: 'Paneles' },
+            { id: 'pr_flexrey_064_122_244', name: 'FlexRey Flexible 1/4" (1.22x2.44m)', price: 200.00, unit: 'pza', description: 'Panel de yeso flexible para superficies curvas.', category: 'Paneles' },
+            { id: 'pr_ecorey_127_122_244', name: 'EcoRey (Contenido Reciclado) 1/2" (1.22x2.44m)', price: 165.00, unit: 'pza', description: 'Panel de yeso con contenido reciclado.', category: 'Paneles' },
+            
+            // Compuestos y Adhesivos
+            { id: 'pr_comp_std_21kg', name: 'Compuesto Estándar Panel Rey 21kg', price: 170.00, unit: 'saco', description: 'Compuesto multiusos para tratamiento de juntas.', category: 'Compuestos' },
+            { id: 'pr_comp_std_28kg', name: 'Compuesto Estándar Panel Rey 28kg', price: 210.00, unit: 'saco', description: 'Compuesto multiusos para tratamiento de juntas.', category: 'Compuestos' },
+            { id: 'pr_comp_rm_28kg', name: 'Compuesto Ready Mix Panel Rey 28kg', price: 250.00, unit: 'cubeta', description: 'Compuesto premezclado listo para usarse.', category: 'Compuestos' },
+            { id: 'pr_comp_rm_6kg', name: 'Compuesto Ready Mix Panel Rey 6kg', price: 90.00, unit: 'cubeta', description: 'Compuesto premezclado cubeta pequeña.', category: 'Compuestos' },
+            { id: 'pr_comp_es_5min_8kg', name: 'Compuesto Easy Set 5 Minutos Panel Rey 8kg', price: 150.00, unit: 'saco', description: 'Compuesto de secado rápido (5 min).', category: 'Compuestos' },
+            { id: 'pr_comp_es_20min_11kg', name: 'Compuesto Easy Set 20 Minutos Panel Rey 11kg', price: 180.00, unit: 'saco', description: 'Compuesto de secado rápido (20 min).', category: 'Compuestos' },
+
+            // Perfiles Metálicos
+            { id: 'pr_canal_635_305_c26', name: 'Canal Listón 6.35cm x 3.05m Cal.26', price: 50.00, unit: 'pza', description: 'Perfil metálico para bastidores.', category: 'Perfiles' },
+            { id: 'pr_poste_635_305_c26', name: 'Poste Metálico 6.35cm x 3.05m Cal.26', price: 60.00, unit: 'pza', description: 'Perfil metálico para bastidores.', category: 'Perfiles' },
+            { id: 'pr_canal_920_305_c26', name: 'Canal Listón 9.20cm x 3.05m Cal.26', price: 65.00, unit: 'pza', description: 'Perfil metálico para bastidores anchos.', category: 'Perfiles' },
+            { id: 'pr_poste_920_305_c26', name: 'Poste Metálico 9.20cm x 3.05m Cal.26', price: 75.00, unit: 'pza', description: 'Perfil metálico para bastidores anchos.', category: 'Perfiles' },
+            { id: 'pr_angulo_esq_305_c26', name: 'Ángulo Esquinero Metálico 3.05m Cal.26', price: 40.00, unit: 'pza', description: 'Perfil para remate de esquinas.', category: 'Perfiles' },
+            
+            // Cintas y Accesorios
+            { id: 'pr_cinta_papel_76m', name: 'Cinta de Papel Panel Rey 76m', price: 55.00, unit: 'rollo', description: 'Cinta de papel para refuerzo de juntas.', category: 'Cintas' },
+            { id: 'pr_cinta_fibra_vidrio_45m', name: 'Cinta Fibra de Vidrio Panel Rey 45m', price: 70.00, unit: 'rollo', description: 'Cinta de malla de fibra de vidrio autoadherible.', category: 'Cintas' },
+            { id: 'pr_perfacinta_papel_metal_30m', name: 'Perfacinta Papel c/Metal Panel Rey 30m', price: 120.00, unit: 'rollo', description: 'Cinta para esquinas interiores y exteriores.', category: 'Cintas' },
+            { id: 'pr_esquinero_metal_305', name: 'Esquinero Metálico Exterior 3.05m', price: 35.00, unit: 'pza', description: 'Protector de esquinas metálico.', category: 'Accesorios' },
+            { id: 'pr_reborde_j_127_305', name: 'Reborde J Metálico 1/2" x 3.05m', price: 45.00, unit: 'pza', description: 'Remate metálico tipo J para panel de 1/2".', category: 'Accesorios' },
+
+            // Tornillería
+            { id: 'pr_tornillo_s1_1', name: 'Tornillo S1 Panelero 1" (caja 100 pzas)', price: 40.00, unit: 'caja', description: 'Tornillo para fijar panel a metal delgado.', category: 'Tornilleria' },
+            { id: 'pr_tornillo_s1_158', name: 'Tornillo S1 Panelero 1 5/8" (caja 100 pzas)', price: 50.00, unit: 'caja', description: 'Tornillo para fijar doble panel a metal.', category: 'Tornilleria' },
+            { id: 'pr_tornillo_pf_12', name: 'Tornillo PF (Punta Fina) 1/2" (caja 100 pzas)', price: 35.00, unit: 'caja', description: 'Tornillo para fijar metal con metal (poste y canal).', category: 'Tornilleria' },
+        ];
+        let documentItems = [];
+        let savedDocuments = [];
+        let allChoferNames = []; 
+
+        const clientSearchSelect = document.getElementById('clientSearch');
+        const clientNameDisplay = document.getElementById('clientNameDisplay');
+        const clientPhoneDisplay = document.getElementById('clientPhoneDisplay');
+        const clientEmailDisplay = document.getElementById('clientEmailDisplay');
+        const clientAddressDisplay = document.getElementById('clientAddressDisplay');
+        const editClientBtn = document.getElementById('editClientBtn');
+        const paymentStatusSection = document.getElementById('paymentStatusSection');
+        const paymentStatusSelect = document.getElementById('paymentStatus');
+        const choferNameInput = document.getElementById('choferNameInput');
+
+
+        const productSelect = document.getElementById('productSelect');
+        const documentItemsTableBody = document.getElementById('documentItems');
+        const totalAmountSpan = document.getElementById('totalAmount');
+        const noItemsRow = document.getElementById('noItemsRow');
+
+        const clientModal = document.getElementById('clientModal');
+        const clientModalTitle = document.getElementById('clientModalTitle');
+        const clientIdInput = document.getElementById('clientId');
+        const clientNameInput = document.getElementById('clientName');
+        const clientPhoneInput = document.getElementById('clientPhone');
+        const clientEmailInput = document.getElementById('clientEmail');
+        const clientAddressInput = document.getElementById('clientAddress');
+        const clientRazonSocialInput = document.getElementById('clientRazonSocial');
+        const clientRfcInput = document.getElementById('clientRfc');
+        const clientFiscalAddressInput = document.getElementById('clientFiscalAddress');
+        const clientCfdiInput = document.getElementById('clientCfdi');
+        const clientRegimenFiscalInput = document.getElementById('clientRegimenFiscal');
+        const clientInvoiceEmailInput = document.getElementById('clientInvoiceEmail');
+
+
+        const productModal = document.getElementById('productModal');
+        const productIdInput = document.getElementById('productId');
+        const productNameInput = document.getElementById('productName');
+        const productPriceInput = document.getElementById('productPrice');
+        const productUnitInput = document.getElementById('productUnit');
+        const productDescriptionInput = document.getElementById('productDescription');
+        const existingProductsList = document.getElementById('existingProductsList');
+
+        const savedDocumentsList = document.getElementById('savedDocumentsList');
+        const purchaseHistorySection = document.getElementById('purchaseHistorySection');
+        const purchaseHistoryList = document.getElementById('purchaseHistoryList');
+        
+        const adminAccessModal = document.getElementById('adminAccessModal');
+        const adminSectionModal = document.getElementById('adminSectionModal');
+        const adminPasswordInput = document.getElementById('adminPasswordInput');
+
+        // --- Firestore Paths ---
+        const getClientsPath = () => `artifacts/${appId}/users/${userId}/clients`;
+        const getClientDocPath = (docId) => `artifacts/${appId}/users/${userId}/clients/${docId}`;
+        const getProductsPath = () => `artifacts/${appId}/users/${userId}/products`;
+        const getProductDocPath = (docId) => `artifacts/${appId}/users/${userId}/products/${docId}`;
+        const getDocumentsPath = () => `artifacts/${appId}/users/${userId}/documents`;
+        const getDocumentDocPath = (docId) => `artifacts/${appId}/users/${userId}/documents/${docId}`;
+
+        async function loadInitialData() {
+            renderProductSelect(); 
+            renderExistingProductsList(); 
+            setMode('cotizacion'); 
+
+            if (!db || !userId) {
+                console.warn("DB or userId not available. Firebase features disabled.");
+                return;
+            }
+            
+            const clientsQuery = query(collection(db, getClientsPath()));
+            onSnapshot(clientsQuery, (snapshot) => {
+                clients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderClientSearch();
+                populateAdminChoferSelect(); 
+            }, error => console.error("Error loading clients:", error));
+
+            const productsQuery = query(collection(db, getProductsPath()));
+            onSnapshot(productsQuery, async (snapshot) => {
+                const localDefaultProducts = products; 
+                if (snapshot.empty && localDefaultProducts.length > 0) { 
+                    console.log("No products in Firestore, adding defaults...");
+                    const batch = writeBatch(db);
+                    localDefaultProducts.forEach(p => {
+                        const docRef = doc(collection(db, getProductsPath()), p.id || crypto.randomUUID());
+                        batch.set(docRef, { name: p.name, price: parseFloat(p.price) || 0, unit: p.unit, description: p.description, category: p.category || 'General' });
+                    });
+                    try { await batch.commit(); } catch (e) { console.error("Error saving default products:", e); }
+                } else if (!snapshot.empty) {
+                    products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                }
+                renderProductSelect();
+                renderExistingProductsList();
+            }, error => console.error("Error loading products:", error));
+
+            const documentsQuery = query(collection(db, getDocumentsPath()));
+            onSnapshot(documentsQuery, (snapshot) => {
+                savedDocuments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                savedDocuments.sort((a, b) => (b.date?.toDate?.() || 0) - (a.date?.toDate?.() || 0));
+                renderSavedDocumentsList();
+                populateAdminChoferSelect(); 
+                if (adminSectionModal.classList.contains('active')) {
+                    const activeTab = document.querySelector('.admin-tab-button.active');
+                    if (activeTab) {
+                        const tabName = activeTab.getAttribute('onclick').match(/'([^']+)'/)[1];
+                        refreshAdminTabData(tabName);
+                    }
+                }
+            }, error => console.error("Error loading documents:", error));
+        }
+
+        window.openClientModal = (clientIdToEdit = null) => {
+            clientModal.classList.add('active');
+            clientIdInput.value = '';
+            clientNameInput.value = ''; clientPhoneInput.value = ''; clientEmailInput.value = ''; clientAddressInput.value = '';
+            clientRazonSocialInput.value = ''; clientRfcInput.value = ''; clientFiscalAddressInput.value = '';
+            clientCfdiInput.value = ''; clientRegimenFiscalInput.value = ''; clientInvoiceEmailInput.value = '';
+            
+            clientModalTitle.textContent = 'Agregar Nuevo Cliente';
+            if (clientIdToEdit) {
+                const client = clients.find(c => c.id === clientIdToEdit);
+                if (client) {
+                    clientModalTitle.textContent = 'Editar Cliente';
+                    clientIdInput.value = client.id;
+                    clientNameInput.value = client.name;
+                    clientPhoneInput.value = client.phone || '';
+                    clientEmailInput.value = client.email || '';
+                    clientAddressInput.value = client.address || '';
+                    clientRazonSocialInput.value = client.razonSocial || '';
+                    clientRfcInput.value = client.rfc || '';
+                    clientFiscalAddressInput.value = client.fiscalAddress || '';
+                    clientCfdiInput.value = client.cfdiUse || '';
+                    clientRegimenFiscalInput.value = client.fiscalRegime || '';
+                    clientInvoiceEmailInput.value = client.invoiceEmail || '';
+                }
+            }
+            clientNameInput.focus();
+        }
+        window.closeClientModal = () => clientModal.classList.remove('active');
+
+        window.saveClient = async () => {
+            if (!db) { showToast("Base de datos no disponible (Modo Offline). No se puede guardar.", true); return; }
+            const id = clientIdInput.value;
+            const name = clientNameInput.value.trim();
+            const phone = clientPhoneInput.value.trim();
+            const email = clientEmailInput.value.trim();
+            const address = clientAddressInput.value.trim();
+            const razonSocial = clientRazonSocialInput.value.trim();
+            const rfc = clientRfcInput.value.trim();
+            const fiscalAddress = clientFiscalAddressInput.value.trim();
+            const cfdiUse = clientCfdiInput.value.trim();
+            const fiscalRegime = clientRegimenFiscalInput.value.trim();
+            const invoiceEmail = clientInvoiceEmailInput.value.trim();
+
+            if (!name || !address) { showToast("Nombre y Dirección del cliente son obligatorios.", true); return; }
+            
+            const clientData = { 
+                name, phone, email, address, 
+                razonSocial, rfc, fiscalAddress, cfdiUse, fiscalRegime, invoiceEmail,
+                purchaseHistory: id ? (clients.find(c=>c.id===id)?.purchaseHistory || []) : [] 
+            };
+            
+            try {
+                if (id) {
+                    await setDoc(doc(db, getClientDocPath(id)), clientData, { merge: true });
+                    showToast("Cliente actualizado.", false);
+                } else {
+                    const docRef = await addDoc(collection(db, getClientsPath()), clientData);
+                    showToast("Cliente agregado.", false);
+                    clientSearchSelect.value = docRef.id;
+                    handleClientSelection();
+                }
+                closeClientModal();
+            } catch (error) { console.error("Error saving client:", error); showToast("Error al guardar cliente: " + error.message, true); }
+        };
+
+        function renderClientSearch() {
+            const currentVal = clientSearchSelect.value;
+            clientSearchSelect.innerHTML = '<option value="">-- Nuevo Cliente --</option>';
+            clients.sort((a,b) => a.name.localeCompare(b.name)).forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.id;
+                option.textContent = client.name + (client.address ? ` (${client.address.substring(0,20)}...)` : '');
+                clientSearchSelect.appendChild(option);
+            });
+            clientSearchSelect.value = currentVal;
+            handleClientSelection();
+        }
+
+        clientSearchSelect.addEventListener('change', handleClientSelection);
+
+        function handleClientSelection() {
+            const selectedClientId = clientSearchSelect.value;
+            editClientBtn.disabled = !selectedClientId;
+            if (selectedClientId) {
+                const client = clients.find(c => c.id === selectedClientId);
+                if (client) {
+                    clientNameDisplay.textContent = client.name;
+                    clientPhoneDisplay.textContent = client.phone || '-';
+                    clientEmailDisplay.textContent = client.email || '-';
+                    clientAddressDisplay.textContent = client.address || '-';
+                    // updateMapLocation(client.address); // Map functionality removed
+                    displayPurchaseHistory(client);
+                }
+            } else {
+                clientNameDisplay.textContent = '-'; clientPhoneDisplay.textContent = '-'; clientEmailDisplay.textContent = '-'; clientAddressDisplay.textContent = '-';
+                // if (map) { map.setCenter({ lat: 19.4326, lng: -99.1332 }); map.setZoom(10); } // Map functionality removed
+                purchaseHistorySection.style.display = 'none';
+                purchaseHistoryList.innerHTML = '';
+            }
+        }
+        window.editSelectedClient = () => {
+            if (clientSearchSelect.value) openClientModal(clientSearchSelect.value);
+            else showToast("Selecciona un cliente para editar.", true);
+        };
+
+        // updateMapLocation function removed as Google Maps is removed.
+
+        function displayPurchaseHistory(client) {
+            const currentMode = document.getElementById('currentMode').value;
+            if (currentMode === 'remision' && client) {
+                purchaseHistorySection.style.display = 'block';
+                if (client.purchaseHistory && client.purchaseHistory.length > 0) {
+                    purchaseHistoryList.innerHTML = client.purchaseHistory
+                        .sort((a,b) => (b.date?.toDate?.() || 0) - (a.date?.toDate?.() || 0)) 
+                        .map(item => {
+                        const date = item.date?.toDate ? item.date.toDate().toLocaleDateString() : (item.date instanceof Date ? item.date.toLocaleDateString() : 'Fecha desconocida');
+                        return `<div class="p-1 border-b border-gray-100">
+                                    <span class="font-medium">${date}</span> - Folio: ${item.folio || item.documentNumber || item.remittanceId} - Total: $${parseFloat(item.totalAmount || 0).toFixed(2)}
+                                </div>`;
+                    }).join('');
+                } else {
+                    purchaseHistoryList.innerHTML = '<p class="text-gray-500">No hay remisiones registradas.</p>';
+                }
+            } else {
+                purchaseHistorySection.style.display = 'none';
+            }
+        }
+
+        window.openProductModal = (productIdToEdit = null) => {
+            productModal.classList.add('active');
+            clearProductForm(); 
+            if (productIdToEdit) {
+                const product = products.find(p => p.id === productIdToEdit);
+                if (product) {
+                    productIdInput.value = product.id;
+                    productNameInput.value = product.name;
+                    productPriceInput.value = product.price;
+                    productUnitInput.value = product.unit || 'pza';
+                    productDescriptionInput.value = product.description || '';
+                }
+            }
+            productNameInput.focus();
+        }
+        window.closeProductModal = () => productModal.classList.remove('active');
+        window.clearProductForm = () => {
+            productIdInput.value = ''; productNameInput.value = ''; productPriceInput.value = '';
+            productUnitInput.value = 'pza'; productDescriptionInput.value = '';
+            productNameInput.focus();
+        }
+
+        window.saveProduct = async () => {
+            if (!db) { showToast("Base de datos no disponible (Modo Offline). No se puede guardar.", true); return; }
+            const id = productIdInput.value;
+            const name = productNameInput.value.trim();
+            const price = parseFloat(productPriceInput.value);
+            const unit = productUnitInput.value.trim() || 'pza';
+            const description = productDescriptionInput.value.trim();
+            const category = products.find(p => p.id === id)?.category || 'General'; 
+
+            if (!name || isNaN(price) || price < 0) { showToast("Nombre y precio válido son obligatorios.", true); return; }
+            
+            const productData = { name, price, unit, description, category };
+            try {
+                const docRefPath = id ? getProductDocPath(id) : doc(collection(db, getProductsPath())).path; 
+                await setDoc(doc(db, docRefPath), productData, { merge: true }); 
+                showToast(id ? "Producto actualizado." : "Producto agregado.", false);
+                clearProductForm();
+            } catch (error) { console.error("Error saving product:", error); showToast("Error al guardar producto: " + error.message, true); }
+        };
+
+        window.editProduct = (productId) => openProductModal(productId);
+
+        window.deleteProduct = async (productId) => {
+            if (!db) { showToast("Base de datos no disponible (Modo Offline).", true); return; }
+            if (!confirm("¿Eliminar este producto? Esta acción no se puede deshacer.")) return;
+            try {
+                await deleteDoc(doc(db, getProductDocPath(productId)));
+                showToast("Producto eliminado.", false);
+            } catch (error) { console.error("Error deleting product:", error); showToast("Error al eliminar: " + error.message, true); }
+        };
+
+        function renderProductSelect() {
+            productSelect.innerHTML = '<option value="">-- Selecciona Producto --</option>';
+            const groupedProducts = products.reduce((acc, product) => {
+                const category = product.category || 'General';
+                if (!acc[category]) acc[category] = [];
+                acc[category].push(product);
+                return acc;
+            }, {});
+
+            for (const category in groupedProducts) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = category;
+                groupedProducts[category].sort((a,b)=>a.name.localeCompare(b.name)).forEach(product => {
+                    const option = document.createElement('option');
+                    option.value = product.id;
+                    option.textContent = `${product.name} - $${parseFloat(product.price || 0).toFixed(2)}/${product.unit}`;
+                    optgroup.appendChild(option);
+                });
+                productSelect.appendChild(optgroup);
+            }
+        }
+
+        function renderExistingProductsList() {
+            existingProductsList.innerHTML = '';
+            if (products.length === 0) {
+                existingProductsList.innerHTML = '<tr><td colspan="4" class="text-center py-3 text-gray-500">No hay productos.</td></tr>';
+                return;
+            }
+            products.sort((a,b)=>a.name.localeCompare(b.name)).forEach(product => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-3 py-2 whitespace-nowrap">${product.name}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">$${parseFloat(product.price || 0).toFixed(2)}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">${product.unit || 'pza'}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">
+                        <button onclick="editProduct('${product.id}')" class="text-emerald-600 hover:text-emerald-800 text-xs mr-2">Editar</button>
+                        <button onclick="deleteProduct('${product.id}')" class="text-red-600 hover:text-red-800 text-xs">Eliminar</button>
+                    </td>
+                `;
+                existingProductsList.appendChild(tr);
+            });
+        }
+
+        window.addItemToDocument = (productToAdd = null, quantityToAdd = null) => {
+            const productId = productToAdd ? productToAdd.id : productSelect.value;
+            const quantity = quantityToAdd ? quantityToAdd : parseInt(document.getElementById('productQuantity').value);
+
+            if (!productId || isNaN(quantity) || quantity <= 0) {
+                showToast("Selecciona un producto y cantidad válida.", true);
+                return;
+            }
+            const product = productToAdd ? productToAdd : products.find(p => p.id === productId);
+            if (!product) { showToast("Producto no encontrado.", true); return; }
+
+            const existingItem = documentItems.find(item => item.productId === productId);
+            if (existingItem) {
+                existingItem.quantity += quantity;
+            } else {
+                documentItems.push({
+                    id: crypto.randomUUID(), productId: product.id, productName: product.name,
+                    quantity: quantity, unitPrice: parseFloat(product.price || 0), unit: product.unit
+                });
+            }
+            renderDocumentItems();
+            updateTotals();
+            if (!productToAdd) document.getElementById('productQuantity').value = 1; 
+        };
+        
+        function renderDocumentItems() {
+            documentItemsTableBody.innerHTML = '';
+            noItemsRow.style.display = documentItems.length === 0 ? 'table-row' : 'none';
+            if (documentItems.length === 0) documentItemsTableBody.appendChild(noItemsRow);
+
+
+            documentItems.forEach((item) => {
+                const tr = document.createElement('tr');
+                tr.setAttribute('data-id', item.id);
+                tr.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap">${item.productName}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <input type="number" value="${item.quantity}" min="1" class="w-20 p-1 border border-gray-300 rounded-md text-sm" onchange="updateItemQuantity('${item.id}', this.value)">
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <input type="number" value="${parseFloat(item.unitPrice || 0).toFixed(2)}" step="0.01" class="w-24 p-1 border border-gray-300 rounded-md text-sm" onchange="updateItemPrice('${item.id}', this.value)">
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">$${(item.quantity * item.unitPrice).toFixed(2)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <button onclick="removeItemFromDocument('${item.id}')" class="text-red-500 hover:text-red-700 p-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c.342.052.682.107 1.022.166m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                        </button>
+                    </td>
+                `;
+                 if(noItemsRow.parentNode === documentItemsTableBody) { 
+                    documentItemsTableBody.insertBefore(tr, noItemsRow);
+                } else {
+                    documentItemsTableBody.appendChild(tr); 
+                }
+            });
+            updateTotals();
+        }
+
+        window.updateItemQuantity = (itemId, newQuantity) => {
+            const item = documentItems.find(i => i.id === itemId);
+            const quantity = parseInt(newQuantity);
+            if (item && !isNaN(quantity) && quantity > 0) item.quantity = quantity;
+            else if (item) item.quantity = 1; 
+            renderDocumentItems();
+        };
+        window.updateItemPrice = (itemId, newPrice) => {
+            const item = documentItems.find(i => i.id === itemId);
+            const price = parseFloat(newPrice);
+            if (item && !isNaN(price) && price >= 0) item.unitPrice = price;
+            else if (item) item.unitPrice = 0; 
+            renderDocumentItems();
+        };
+        window.removeItemFromDocument = (itemId) => {
+            documentItems = documentItems.filter(item => item.id !== itemId);
+            renderDocumentItems();
+        };
+        function updateTotals() {
+            const subtotal = documentItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+            totalAmountSpan.textContent = `$${subtotal.toFixed(2)}`;
+        }
+
+        window.setMode = (mode) => {
+            const appBody = document.getElementById('appBody');
+            const titleElement = document.getElementById('documentTitle');
+            const btnCotizacion = document.getElementById('btnModeCotizacion');
+            const btnRemision = document.getElementById('btnModeRemision');
+            
+            document.getElementById('currentMode').value = mode;
+            appBody.classList.remove('mode-cotizacion', 'mode-remision');
+
+            if (mode === 'cotizacion') {
+                appBody.classList.add('mode-cotizacion');
+                titleElement.textContent = 'Items en la Cotización';
+                btnCotizacion.classList.add('active');
+                btnRemision.classList.remove('active');
+                purchaseHistorySection.style.display = 'none';
+                paymentStatusSection.style.display = 'none';
+            } else { // Remisión
+                appBody.classList.add('mode-remision');
+                titleElement.textContent = 'Items en la Remisión';
+                btnRemision.classList.add('active');
+                btnCotizacion.classList.remove('active');
+                paymentStatusSection.style.display = 'block';
+                const selectedClientId = clientSearchSelect.value;
+                if (selectedClientId) displayPurchaseHistory(clients.find(c => c.id === selectedClientId));
+                else purchaseHistorySection.style.display = 'block'; 
+            }
+        };
+
+        window.saveDocument = async () => {
+            if (!db) { showToast("Base de datos no disponible (Modo Offline). No se puede guardar.", true); return; }
+            const mode = document.getElementById('currentMode').value;
+            const selectedClientId = clientSearchSelect.value;
+            let currentDocId = document.getElementById('currentDocumentId').value;
+            let currentFolio = document.getElementById('currentFolio').value;
+            const chofer = choferNameInput.value.trim();
+
+            if (!selectedClientId) { showToast("Selecciona un cliente.", true); return; }
+            if (documentItems.length === 0) { showToast("Agrega productos al documento.", true); return; }
+            
+            const client = clients.find(c => c.id === selectedClientId);
+            const subtotal = documentItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+            
+            if (!currentFolio) {
+                const prefix = mode === 'cotizacion' ? 'COT-' : 'REM-';
+                currentFolio = prefix + Date.now().toString().slice(-7); 
+                document.getElementById('currentFolio').value = currentFolio;
+            }
+            
+            const docData = {
+                folio: currentFolio, type: mode, date: serverTimestamp(), clientId: selectedClientId,
+                clientName: client.name, clientAddress: client.address, choferName: chofer,
+                items: documentItems.map(item => ({ 
+                    productId: item.productId, productName: item.productName, quantity: item.quantity,
+                    unitPrice: item.unitPrice, unit: item.unit, totalPrice: item.quantity * item.unitPrice
+                })),
+                subtotal: subtotal, total: subtotal, 
+            };
+
+            if (mode === 'remision') {
+                docData.paymentStatus = paymentStatusSelect.value;
+            }
+
+            try {
+                const docRefPath = currentDocId ? getDocumentDocPath(currentDocId) : doc(collection(db, getDocumentsPath())).path;
+                await setDoc(doc(db, docRefPath), docData, { merge: true });
+                if (!currentDocId) document.getElementById('currentDocumentId').value = docRefPath.split('/').pop(); 
+                
+                showToast(`${mode === 'cotizacion' ? 'Cotización' : 'Remisión'} ${currentDocId ? 'actualizada' : 'guardada'} (Folio: ${currentFolio}).`, false);
+
+                if (mode === 'remision') {
+                    const clientDocRef = doc(db, getClientDocPath(selectedClientId));
+                    const clientSnap = await getDoc(clientDocRef);
+                    if (clientSnap.exists()) {
+                        const clientData = clientSnap.data();
+                        let purchaseHistory = clientData.purchaseHistory || [];
+                        const remittanceIdToUpdate = currentDocId || docRefPath.split('/').pop();
+                        const existingEntryIndex = purchaseHistory.findIndex(entry => entry.remittanceId === remittanceIdToUpdate);
+                        const historyEntry = {
+                            remittanceId: remittanceIdToUpdate, folio: currentFolio, date: new Date(), totalAmount: docData.total
+                        };
+                        if (existingEntryIndex > -1) purchaseHistory[existingEntryIndex] = historyEntry;
+                        else purchaseHistory.push(historyEntry);
+                        await updateDoc(clientDocRef, { purchaseHistory });
+                        displayPurchaseHistory({ ...clientData, id: selectedClientId, purchaseHistory }); 
+                    }
+                }
+            } catch (error) { console.error(`Error saving ${mode}:`, error); showToast(`Error al guardar: ${error.message}`, true); }
+        };
+        
+        window.sendPdfAndClearItems = async () => {
+            if (documentItems.length === 0) {
+                showToast("No hay items para generar el PDF.", true);
+                return;
+            }
+            const pdfGenerated = await generatePDF(false); 
+            if (!pdfGenerated) {
+                showToast("No se pudo generar el PDF para enviar.", true);
+                return;
+            }
+            sendViaWhatsApp(); 
+            clearDocumentItemsOnly(false); 
+            showToast("Items limpiados. El PDF está listo para enviarse por WhatsApp.", false);
+        };
+        
+        window.clearDocumentItemsOnly = (confirmClear = true) => {
+            if (documentItems.length === 0) {
+                showToast("No hay items para limpiar.", false);
+                return;
+            }
+            if (confirmClear && !confirm("¿Estás seguro de que quieres limpiar sólo los items del documento actual?")) {
+                return;
+            }
+            documentItems = [];
+            renderDocumentItems(); 
+            showToast("Items del documento limpiados.", false);
+        };
+
+
+        window.generatePDF = async (promptSave = true) => {
+            if (documentItems.length === 0 && promptSave) { 
+                showToast("No hay items para generar el PDF.", true);
+                return false; 
+            }
+            if (documentItems.length === 0 && !promptSave) return false; 
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+            const currentMode = document.getElementById('currentMode').value;
+            const client = clients.find(c => c.id === clientSearchSelect.value);
+            const currentFolio = document.getElementById('currentFolio').value || `PEND-${Date.now().toString().slice(-7)}`;
+            const chofer = choferNameInput.value.trim() || '-';
+
+            pdfPreviewArea.style.position = 'fixed';
+            pdfPreviewArea.style.left = '-300vw'; 
+            pdfPreviewArea.style.top = '0px';
+            pdfPreviewArea.classList.remove('hidden');
+            
+            await new Promise(resolve => setTimeout(resolve, 300)); 
+
+            document.getElementById('pdfTitle').textContent = currentMode === 'cotizacion' ? 'COTIZACIÓN' : 'REMISIÓN';
+            document.getElementById('pdfFolio').textContent = `Folio: ${currentFolio}`;
+            document.getElementById('pdfDate').textContent = `Fecha: ${new Date().toLocaleDateString()}`;
+            document.getElementById('pdfChoferName').textContent = chofer;
+
+
+            if (client) {
+                document.getElementById('pdfClientName').textContent = client.name;
+                document.getElementById('pdfClientAddress').textContent = client.address || '-';
+                document.getElementById('pdfClientPhone').textContent = `Tel: ${client.phone || '-'}`;
+                document.getElementById('pdfClientEmail').textContent = `Email: ${client.email || '-'}`;
+                
+                const invoiceDataMergedDiv = document.getElementById('pdfClientInvoiceDataMerged');
+                const invoiceRazonSocial = document.getElementById('pdfClientRazonSocial');
+                const invoiceRfc = document.getElementById('pdfClientRfc');
+                const invoiceFiscalAddress = document.getElementById('pdfClientFiscalAddress');
+                const invoiceCfdi = document.getElementById('pdfClientCfdi');
+                const invoiceRegimenFiscal = document.getElementById('pdfClientRegimenFiscal');
+                const invoiceEmail = document.getElementById('pdfClientInvoiceEmail');
+
+                if (client.rfc || client.razonSocial) {
+                    invoiceRazonSocial.textContent = client.razonSocial || '-';
+                    invoiceRfc.textContent = client.rfc || '-';
+                    invoiceFiscalAddress.textContent = client.fiscalAddress || '-';
+                    invoiceCfdi.textContent = client.cfdiUse || '-';
+                    invoiceRegimenFiscal.textContent = client.fiscalRegime || '-';
+                    invoiceEmail.textContent = client.invoiceEmail || client.email || '-';
+                    invoiceDataMergedDiv.style.display = 'block';
+                } else {
+                    invoiceDataMergedDiv.style.display = 'none';
+                }
+            } else {
+                 document.getElementById('pdfClientName').textContent = "Cliente General";
+                 ['pdfClientAddress', 'pdfClientPhone', 'pdfClientEmail'].forEach(id => document.getElementById(id).textContent = "-");
+                 document.getElementById('pdfClientInvoiceDataMerged').style.display = 'none';
+            }
+            
+            const pdfPaymentStatusEl = document.getElementById('pdfPaymentStatus');
+            if (currentMode === 'remision') {
+                const statusValue = paymentStatusSelect.value;
+                pdfPaymentStatusEl.textContent = statusValue === 'pagado' ? 'ESTADO: PAGADO' : 'ESTADO: PENDIENTE DE PAGO';
+                pdfPaymentStatusEl.style.color = statusValue === 'pagado' ? '#10B981' : '#EF4444'; 
+                pdfPaymentStatusEl.style.display = 'block';
+            } else {
+                pdfPaymentStatusEl.style.display = 'none';
+            }
+
+            const pdfItemsTableBody = document.getElementById('pdfItems');
+            pdfItemsTableBody.innerHTML = ''; 
+            documentItems.forEach((item, index) => {
+                const row = pdfItemsTableBody.insertRow();
+                if (index % 2 !== 0) { 
+                    row.classList.add('pdf-item-row-odd'); 
+                }
+                row.insertCell().textContent = item.productName;
+                row.insertCell().textContent = item.quantity; row.cells[1].style.textAlign = 'right';
+                row.insertCell().textContent = item.unit || 'pza'; row.cells[2].style.textAlign = 'right';
+                row.insertCell().textContent = `$${parseFloat(item.unitPrice).toFixed(2)}`; row.cells[3].style.textAlign = 'right';
+                row.insertCell().textContent = `$${(item.quantity * item.unitPrice).toFixed(2)}`; row.cells[4].style.textAlign = 'right';
+            });
+
+            document.getElementById('pdfTotal').textContent = totalAmountSpan.textContent;
+            
+            if (promptSave) showToast("Generando PDF...", false);
+
+            let success = false;
+            try {
+                const canvas = await html2canvas(pdfPreviewArea, { 
+                    scale: 2.5, useCORS: true, 
+                    width: pdfPreviewArea.offsetWidth, height: pdfPreviewArea.offsetHeight, 
+                    windowWidth: pdfPreviewArea.scrollWidth, windowHeight: pdfPreviewArea.scrollHeight,
+                    logging: false 
+                });
+                
+                pdfPreviewArea.classList.add('hidden'); 
+                pdfPreviewArea.style.position = ''; pdfPreviewArea.style.left = ''; pdfPreviewArea.style.top = '';
+
+                const imgData = canvas.toDataURL('image/png');
+                const imgProps = pdf.getImageProperties(imgData);
+                
+                const pdfPageWidth = pdf.internal.pageSize.getWidth();
+                const pdfPageHeight = pdf.internal.pageSize.getHeight();
+                const margin = 10;
+                const contentPdfWidth = pdfPageWidth - (2 * margin);
+                const contentPdfHeightMax = pdfPageHeight - (2 * margin);
+
+                const sourceImgWidth = canvas.width;
+                const sourceImgHeight = canvas.height;
+                const scaledImgTotalHeightInPdf = (sourceImgHeight * contentPdfWidth) / sourceImgWidth;
+
+                if (scaledImgTotalHeightInPdf <= contentPdfHeightMax) {
+                    pdf.addImage(imgData, 'PNG', margin, margin, contentPdfWidth, scaledImgTotalHeightInPdf);
+                } else {
+                    let yPosOnSourceCanvas = 0;
+                    let pageNum = 0;
+                    const sliceCanvas = document.createElement('canvas');
+                    const sliceCtx = sliceCanvas.getContext('2d');
+                    sliceCanvas.width = sourceImgWidth;
+                    const sliceSourceHeight = Math.floor((contentPdfHeightMax / contentPdfWidth) * sourceImgWidth); 
+                    
+                    while (yPosOnSourceCanvas < sourceImgHeight) {
+                        pageNum++;
+                        if (pageNum > 1) pdf.addPage();
+                        
+                        const currentSliceActualSourceHeight = Math.min(sliceSourceHeight, sourceImgHeight - yPosOnSourceCanvas);
+                        sliceCanvas.height = currentSliceActualSourceHeight; 
+                        sliceCtx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+                        sliceCtx.drawImage(canvas, 
+                                           0, yPosOnSourceCanvas, 
+                                           sourceImgWidth, currentSliceActualSourceHeight, 
+                                           0, 0, 
+                                           sliceCanvas.width, sliceCanvas.height); 
+                        
+                        const sliceImgData = sliceCanvas.toDataURL('image/png');
+                        const slicePdfHeight = (sliceCanvas.height * contentPdfWidth) / sliceCanvas.width;
+                        pdf.addImage(sliceImgData, 'PNG', margin, margin, contentPdfWidth, slicePdfHeight);
+                        yPosOnSourceCanvas += sliceSourceHeight; 
+                    }
+                }
+                
+                if (promptSave) {
+                    const modeText = currentMode === 'cotizacion' ? 'Cotizacion' : 'Remision';
+                    const clientNameForFile = client ? client.name.replace(/[^\w\s.-]/gi, '').replace(/\s+/g, '_').substring(0, 20) : 'ClienteGeneral';
+                    const folioForFile = currentFolio.replace(/[^\w-]/gi, '') || 'SIN_FOLIO';
+                    const fileName = `${modeText}_${folioForFile}_${clientNameForFile}.pdf`;
+                    pdf.save(fileName);
+                    showToast("PDF generado con éxito.", false);
+                }
+                success = true; 
+            } catch (err) {
+                console.error("Error generating PDF with html2canvas:", err);
+                if (promptSave) showToast("Error al generar PDF: " + err.message, true);
+                success = false; 
+                pdfPreviewArea.classList.add('hidden');
+                pdfPreviewArea.style.position = ''; pdfPreviewArea.style.left = ''; pdfPreviewArea.style.top = '';
+            }
+            return success;
+        };
+
+        window.sendViaWhatsApp = () => {
+            if (documentItems.length === 0 && !totalAmountSpan.textContent.replace(/\$|,/g, '')) {
+                showToast("No hay items o total para enviar.", true); return;
+            }
+            const client = clients.find(c => c.id === clientSearchSelect.value);
+            let clientPhone = client ? client.phone : '';
+            if (clientPhone) clientPhone = clientPhone.replace(/\D/g,'');
+
+            const mode = document.getElementById('currentMode').value;
+            const total = totalAmountSpan.textContent;
+            const folio = document.getElementById('currentFolio').value || 'N/A';
+            let message = `Hola ${client ? client.name : 'Cliente'}, te comparto la ${mode} (Folio: ${folio}) por un total de ${total}. Saludos!`;
+            
+            let whatsappURL = `https://wa.me/${clientPhone}?text=${encodeURIComponent(message)}`;
+            if (!clientPhone) {
+                whatsappURL = `https://web.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+                showToast("Teléfono no disponible. Abriendo WhatsApp Web.", false);
+            } else {
+                 showToast("Abriendo WhatsApp...", false);
+            }
+            window.open(whatsappURL, '_blank');
+            showToast("Recuerda adjuntar el PDF manualmente en WhatsApp.", false);
+        };
+
+        window.resetDocument = (confirmReset = true) => {
+            if (confirmReset && documentItems.length > 0 && !confirm("¿Limpiar el documento actual? Los cambios no guardados se perderán.")) return;
+            
+            documentItems = [];
+            clientSearchSelect.value = "";
+            handleClientSelection();
+            renderDocumentItems(); 
+            document.getElementById('currentDocumentId').value = '';
+            document.getElementById('currentFolio').value = ''; 
+            choferNameInput.value = '';
+            paymentStatusSelect.value = 'pendiente'; 
+            if (confirmReset) showToast("Documento limpiado.", false);
+        };
+
+        function renderSavedDocumentsList() {
+            savedDocumentsList.innerHTML = '';
+             if (savedDocuments.length === 0) {
+                savedDocumentsList.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">No hay documentos.</td></tr>';
+                return;
+            }
+            savedDocuments.forEach(docData => {
+                const tr = document.createElement('tr');
+                const date = docData.date?.toDate ? docData.date.toDate().toLocaleDateString() : 'N/A';
+                const typeDisplay = docData.type === 'cotizacion' ? 'Cotización' : 'Remisión';
+                tr.innerHTML = `
+                    <td class="px-3 py-2 whitespace-nowrap font-medium">${docData.folio || docData.documentNumber || docData.id.substring(0,8)}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">${typeDisplay}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">${date}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">${docData.clientName || 'N/A'}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-right">$${parseFloat(docData.total || 0).toFixed(2)}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">
+                        <button onclick="loadDocument('${docData.id}')" class="text-emerald-600 hover:text-emerald-800 text-xs mr-2">Ver/Editar</button>
+                        <button onclick="deleteDocument('${docData.id}')" class="text-red-600 hover:text-red-800 text-xs">Eliminar</button>
+                    </td>
+                `;
+                savedDocumentsList.appendChild(tr);
+            });
+        }
+
+        window.loadDocument = async (docId) => {
+            if (!db) { showToast("Base de datos no disponible (Modo Offline).", true); return; }
+            try {
+                const docSnap = await getDoc(doc(db, getDocumentDocPath(docId)));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    resetDocument(false); 
+
+                    document.getElementById('currentDocumentId').value = docId;
+                    document.getElementById('currentFolio').value = data.folio || '';
+                    setMode(data.type);
+                    clientSearchSelect.value = data.clientId;
+                    handleClientSelection(); 
+                    choferNameInput.value = data.choferName || '';
+                    if (data.type === 'remision' && data.paymentStatus) {
+                        paymentStatusSelect.value = data.paymentStatus;
+                    }
+
+                    documentItems = data.items.map(item => ({ ...item, id: crypto.randomUUID() }));
+                    renderDocumentItems(); 
+                    showToast(`Documento (Folio: ${data.folio || 'N/A'}) cargado.`, false);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else { showToast("Documento no encontrado.", true); }
+            } catch (error) { console.error("Error loading document:", error); showToast("Error al cargar: " + error.message, true); }
+        };
+
+        window.deleteDocument = async (docId) => {
+            if (!db) { showToast("Base de datos no disponible (Modo Offline).", true); return; }
+            if (!confirm("¿Eliminar este documento? Esta acción no se puede deshacer.")) return;
+            try {
+                const docRef = doc(db, getDocumentDocPath(docId));
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists() && docSnap.data().type === 'remision') {
+                    const clientDocRef = doc(db, getClientDocPath(docSnap.data().clientId));
+                    const clientSnap = await getDoc(clientDocRef);
+                    if (clientSnap.exists()) {
+                        let purchaseHistory = clientSnap.data().purchaseHistory || [];
+                        purchaseHistory = purchaseHistory.filter(entry => entry.remittanceId !== docId);
+                        await updateDoc(clientDocRef, { purchaseHistory });
+                        if (clientSearchSelect.value === docSnap.data().clientId) {
+                            displayPurchaseHistory({ ...clientSnap.data(), id: docSnap.data().clientId, purchaseHistory });
+                        }
+                    }
+                }
+                await deleteDoc(docRef);
+                showToast("Documento eliminado.", false);
+                if (document.getElementById('currentDocumentId').value === docId) resetDocument(false);
+            } catch (error) { console.error("Error deleting document:", error); showToast("Error al eliminar: " + error.message, true); }
+        };
+
+        // --- Admin Section Logic ---
+        window.openAdminAccessModal = () => adminAccessModal.classList.add('active');
+        window.closeAdminAccessModal = () => adminAccessModal.classList.remove('active');
+        window.closeAdminSectionModal = () => adminSectionModal.classList.remove('active');
+
+        window.checkAdminPassword = () => {
+            if (adminPasswordInput.value === "30895") {
+                closeAdminAccessModal();
+                adminSectionModal.classList.add('active');
+                adminPasswordInput.value = ""; 
+                showAdminTab('remisiones'); 
+            } else {
+                showToast("Contraseña incorrecta.", true);
+                adminPasswordInput.value = "";
+            }
+        };
+        
+        function refreshAdminTabData(tabName) {
+             switch(tabName) {
+                case 'remisiones': loadAdminRemisiones(); break;
+                case 'materiales': loadAdminMaterialesVendidos(); break;
+                case 'clientes': loadAdminClientes(); break;
+                case 'corteCaja': calculateCorteCaja(); break; 
+                case 'viajes': loadViajesReport(); break; 
+            }
+        }
+
+        window.showAdminTab = (tabName) => {
+            document.querySelectorAll('.admin-tab-content').forEach(content => content.style.display = 'none');
+            document.querySelectorAll('.admin-tab-button').forEach(button => button.classList.remove('active', 'bg-slate-100', 'text-slate-700'));
+            document.querySelectorAll('.admin-tab-button').forEach(button => button.classList.add('text-slate-500', 'hover:text-slate-700', 'hover:bg-slate-50'));
+
+            document.getElementById(`adminTabContent${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).style.display = 'block';
+            const activeButton = document.querySelector(`.admin-tab-button[onclick="showAdminTab('${tabName}')"]`);
+            activeButton.classList.add('active', 'bg-slate-100', 'text-slate-700');
+            activeButton.classList.remove('text-slate-500', 'hover:text-slate-700', 'hover:bg-slate-50');
+            
+            refreshAdminTabData(tabName);
+        };
+
+        function loadAdminRemisiones() {
+            const listEl = document.getElementById('adminRemisionesList');
+            listEl.innerHTML = '';
+            const remisiones = savedDocuments.filter(doc => doc.type === 'remision');
+            if (remisiones.length === 0) {
+                listEl.innerHTML = '<tr><td colspan="6">No hay remisiones guardadas.</td></tr>'; return;
+            }
+            remisiones.forEach(rem => {
+                const tr = listEl.insertRow();
+                tr.insertCell().textContent = rem.folio || 'N/A';
+                tr.insertCell().textContent = rem.date?.toDate ? rem.date.toDate().toLocaleDateString() : 'N/A';
+                tr.insertCell().textContent = rem.clientName || 'N/A';
+                tr.insertCell().textContent = `$${parseFloat(rem.total || 0).toFixed(2)}`;
+                tr.insertCell().textContent = rem.paymentStatus === 'pagado' ? 'Pagado' : 'Pendiente';
+                tr.cells[4].style.color = rem.paymentStatus === 'pagado' ? 'green' : 'red';
+                tr.insertCell().textContent = rem.choferName || '-';
+            });
+        }
+
+        function loadAdminMaterialesVendidos() {
+            const listEl = document.getElementById('adminMaterialesVendidosList');
+            listEl.innerHTML = '';
+            const materialSummary = {};
+            savedDocuments.filter(doc => doc.type === 'remision' && doc.paymentStatus === 'pagado').forEach(rem => {
+                rem.items.forEach(item => {
+                    if (materialSummary[item.productName]) {
+                        materialSummary[item.productName].quantity += item.quantity;
+                    } else {
+                        materialSummary[item.productName] = { quantity: item.quantity, unit: item.unit || 'pza' };
+                    }
+                });
+            });
+            if (Object.keys(materialSummary).length === 0) {
+                listEl.innerHTML = '<tr><td colspan="3">No hay materiales vendidos en remisiones pagadas.</td></tr>'; return;
+            }
+            for (const productName in materialSummary) {
+                const tr = listEl.insertRow();
+                tr.insertCell().textContent = productName;
+                tr.insertCell().textContent = materialSummary[productName].quantity.toFixed(1);
+                tr.insertCell().textContent = materialSummary[productName].unit;
+            }
+        }
+        
+        function loadAdminClientes() {
+            const listEl = document.getElementById('adminClientesList');
+            listEl.innerHTML = '';
+            if (clients.length === 0) {
+                listEl.innerHTML = '<tr><td colspan="5">No hay clientes guardados.</td></tr>'; return;
+            }
+            clients.forEach(client => {
+                const tr = listEl.insertRow();
+                tr.insertCell().textContent = client.name;
+                tr.insertCell().textContent = client.phone || '-';
+                tr.insertCell().textContent = client.email || '-';
+                tr.insertCell().textContent = client.address || '-';
+                tr.insertCell().textContent = client.rfc || '-';
+            });
+        }
+        
+        document.getElementById('corteCajaRange').addEventListener('change', function() {
+            document.getElementById('corteCajaCustomRange').style.display = this.value === 'custom' ? 'flex' : 'none';
+        });
+
+        window.calculateCorteCaja = () => {
+            const rangeType = document.getElementById('corteCajaRange').value;
+            let startDate, endDate = new Date(); 
+
+            if (rangeType === 'custom') {
+                startDate = document.getElementById('corteCajaStart').value ? new Date(document.getElementById('corteCajaStart').value + "T00:00:00") : null;
+                endDate = document.getElementById('corteCajaEnd').value ? new Date(document.getElementById('corteCajaEnd').value + "T23:59:59") : new Date();
+            } else {
+                startDate = new Date();
+                startDate.setDate(startDate.getDate() - parseInt(rangeType));
+                startDate.setHours(0,0,0,0);
+            }
+            
+            if (!startDate) { showToast("Fecha de inicio no válida para corte de caja.", true); return; }
+
+            const listEl = document.getElementById('adminCorteCajaList');
+            listEl.innerHTML = '';
+            let totalCorte = 0;
+            const remisionesPagadas = savedDocuments.filter(doc => {
+                if (doc.type !== 'remision' || doc.paymentStatus !== 'pagado' || !doc.date?.toDate) return false;
+                const docDate = doc.date.toDate();
+                return docDate >= startDate && docDate <= endDate;
+            });
+
+            if (remisionesPagadas.length === 0) {
+                listEl.innerHTML = '<tr><td colspan="4">No hay remisiones pagadas en el periodo seleccionado.</td></tr>';
+                 document.getElementById('corteCajaResult').textContent = `Total: $0.00`;
+                return;
+            }
+
+            remisionesPagadas.forEach(rem => {
+                totalCorte += rem.total;
+                const tr = listEl.insertRow();
+                tr.insertCell().textContent = rem.folio || 'N/A';
+                tr.insertCell().textContent = rem.date.toDate().toLocaleDateString();
+                tr.insertCell().textContent = rem.clientName || 'N/A';
+                tr.insertCell().textContent = `$${parseFloat(rem.total || 0).toFixed(2)}`;
+            });
+            document.getElementById('corteCajaResult').textContent = `Total: $${totalCorte.toFixed(2)}`;
+        }
+
+        function populateAdminChoferSelect() {
+            const choferSelect = document.getElementById('viajesChoferSelect');
+            const currentSelection = choferSelect.value;
+            choferSelect.innerHTML = '<option value="">Todos</option>'; 
+            const choferes = new Set(savedDocuments.map(doc => doc.choferName).filter(name => name)); 
+            allChoferNames = Array.from(choferes).sort();
+            allChoferNames.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                choferSelect.appendChild(option);
+            });
+            choferSelect.value = currentSelection; 
+        }
+
+        window.loadViajesReport = () => {
+            const selectedChofer = document.getElementById('viajesChoferSelect').value;
+            const dateRangeValue = document.getElementById('viajesDateRange').value;
+            let startDate = new Date(), endDate = new Date();
+
+            if (dateRangeValue === 'today') {
+                startDate.setHours(0,0,0,0);
+                endDate.setHours(23,59,59,999);
+            } else { 
+                startDate.setDate(startDate.getDate() - parseInt(dateRangeValue));
+                startDate.setHours(0,0,0,0);
+            }
+
+            const listEl = document.getElementById('adminViajesList');
+            listEl.innerHTML = '';
+            let viajesCount = 0;
+
+            const filteredDocs = savedDocuments.filter(doc => {
+                if (!doc.date?.toDate) return false;
+                const docDate = doc.date.toDate();
+                const choferMatch = !selectedChofer || doc.choferName === selectedChofer;
+                const dateMatch = docDate >= startDate && docDate <= endDate;
+                return choferMatch && dateMatch && doc.choferName; 
+            });
+
+            if (filteredDocs.length === 0) {
+                listEl.innerHTML = '<tr><td colspan="4">No hay viajes para los criterios seleccionados.</td></tr>';
+                document.getElementById('viajesTotal').textContent = `Total de Viajes: 0`;
+                return;
+            }
+            
+            filteredDocs.forEach(doc => {
+                viajesCount++;
+                const tr = listEl.insertRow();
+                tr.insertCell().textContent = doc.folio || 'N/A';
+                tr.insertCell().textContent = doc.date.toDate().toLocaleDateString();
+                tr.insertCell().textContent = doc.clientName || 'N/A';
+                tr.insertCell().textContent = doc.choferName;
+            });
+            document.getElementById('viajesTotal').textContent = `Total de Viajes: ${viajesCount}`;
+        }
+
+
+        // --- Initial Setup ---
+        document.addEventListener('DOMContentLoaded', () => {
+            toastElementRef = document.getElementById('toast'); 
+            // checkApiKey(); // Google Maps API Key check removed
+            resetDocument(false);
+            // loadInitialData will be called by onAuthStateChanged or by fallback if Firebase fails
+        });
+
+    </script>
+</body>
+</html>
